@@ -26,7 +26,7 @@ class EnglishWordApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'English Word App',
+      title: 'English Word App 898989',
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: Colors.indigo,
