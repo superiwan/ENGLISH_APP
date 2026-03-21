@@ -217,6 +217,7 @@ class WordBookModulePage extends StatefulWidget {
 
 class _WordBookModulePageState extends State<WordBookModulePage> {
   late Future<List<Word>> _wordsFuture;
+  final Set<String> _expandedLabels = <String>{};
 
   @override
   void initState() {
@@ -252,6 +253,14 @@ class _WordBookModulePageState extends State<WordBookModulePage> {
               return _GroupLineSection(
                 label: group.label,
                 words: group.words,
+                expanded: _expandedLabels.contains(group.label),
+                onTap: () {
+                  setState(() {
+                    if (!_expandedLabels.add(group.label)) {
+                      _expandedLabels.remove(group.label);
+                    }
+                  });
+                },
               );
             },
           );
@@ -265,10 +274,14 @@ class _GroupLineSection extends StatelessWidget {
   const _GroupLineSection({
     required this.label,
     required this.words,
+    required this.expanded,
+    required this.onTap,
   });
 
   final String label;
   final List<Word> words;
+  final bool expanded;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -287,38 +300,71 @@ class _GroupLineSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                label,
-                style: Theme.of(context).textTheme.titleMedium,
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '$label (${words.length})',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AnimatedRotation(
+                      turns: expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: Icon(
+                        Icons.expand_more,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                '(${words.length})',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          for (final word in words)
-            WordListItem(
-              dense: true,
-              title: word.word,
-              subtitle: _subtitle(word),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                final id = word.id;
-                if (id == null) {
-                  return;
-                }
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => WordDetailPage(wordId: id),
-                  ),
-                );
-              },
             ),
+          ),
+          ClipRect(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: expanded
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Column(
+                        children: [
+                          for (final word in words)
+                            WordListItem(
+                              dense: true,
+                              title: word.word,
+                              subtitle: _subtitle(word),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () {
+                                final id = word.id;
+                                if (id == null) {
+                                  return;
+                                }
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => WordDetailPage(wordId: id),
+                                  ),
+                                );
+                              },
+                            ),
+                        ],
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
         ],
       ),
     );
