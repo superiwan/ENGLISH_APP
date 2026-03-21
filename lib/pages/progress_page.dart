@@ -1,12 +1,12 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../database/app_database.dart';
+import '../ui/app_theme.dart';
+import '../widgets/metric_card.dart';
+import '../widgets/section_header.dart';
 
 class ProgressPage extends StatefulWidget {
-  const ProgressPage({
-    super.key,
-    required this.reloadTick,
-  });
+  const ProgressPage({super.key, required this.reloadTick});
 
   final int reloadTick;
 
@@ -47,34 +47,41 @@ class _ProgressPageState extends State<ProgressPage> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final stats = snapshot.data ?? {
-          'total': 0,
-          'practiced': 0,
-          'mastered': 0,
-          'accuracy': 0.0,
-        };
+        final stats = snapshot.data ??
+            {'total': 0, 'practiced': 0, 'mastered': 0, 'accuracy': 0.0};
 
         final accuracy = (stats['accuracy'] ?? 0.0) * 100;
 
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppUi.space16),
           children: [
-            _card('总单词数', '${stats['total']}'),
-            _card('已练习数量', '${stats['practiced']}'),
-            _card('正确率', '${accuracy.toStringAsFixed(1)}%'),
-            _card('已掌握数量 (familiarity > 80)', '${stats['mastered']}'),
+            const SectionHeader(title: '学习统计', subtitle: '快速查看当前学习进度'),
+            MetricCard(
+              title: '总单词数',
+              value: '${stats['total']}',
+              icon: Icons.menu_book_outlined,
+            ),
+            const SizedBox(height: AppUi.space8),
+            MetricCard(
+              title: '已练习数量',
+              value: '${stats['practiced']}',
+              icon: Icons.check_circle_outline,
+            ),
+            const SizedBox(height: AppUi.space8),
+            MetricCard(
+              title: '正确率',
+              value: '${accuracy.toStringAsFixed(1)}%',
+              icon: Icons.analytics_outlined,
+            ),
+            const SizedBox(height: AppUi.space8),
+            MetricCard(
+              title: '已掌握数量 (familiarity > 80)',
+              value: '${stats['mastered']}',
+              icon: Icons.workspace_premium_outlined,
+            ),
           ],
         );
       },
-    );
-  }
-
-  Widget _card(String title, String value) {
-    return Card(
-      child: ListTile(
-        title: Text(title),
-        trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-      ),
     );
   }
 }

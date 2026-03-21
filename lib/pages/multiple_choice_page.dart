@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../database/app_database.dart';
 import '../models/word.dart';
+import '../ui/app_theme.dart';
+import '../widgets/section_header.dart';
 
 class MultipleChoicePage extends StatefulWidget {
   const MultipleChoicePage({
@@ -110,7 +112,9 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
 
     final isCorrect = selectedMeaning == _currentWord!.meaning;
     await _db.recordChoiceResult(
-        wordId: _currentWord!.id!, isCorrect: isCorrect);
+      wordId: _currentWord!.id!,
+      isCorrect: isCorrect,
+    );
     if (isCorrect) {
       _correctlyAnsweredWordIds.add(_currentWord!.id!);
     } else {
@@ -121,8 +125,13 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
       SnackBar(
+        backgroundColor: isCorrect
+            ? Theme.of(context).colorScheme.primaryContainer
+            : Theme.of(context).colorScheme.errorContainer,
         content: Text(
           isCorrect ? '回答正确' : '回答错误，正确答案：${_currentWord!.meaning}',
         ),
@@ -145,25 +154,52 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
     }
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppUi.space16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('请选择 ${_currentWord!.word} 的正确中文释义',
-              style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 16),
-          ..._options.map(
-            (option) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: FilledButton.tonal(
-                onPressed: _answering ? null : () => _submitAnswer(option),
-                child: Text(option),
+          SectionHeader(
+            title: '选择题训练',
+            subtitle: '本轮已掌握 ${_correctlyAnsweredWordIds.length} 个单词',
+          ),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppUi.space16),
+              child: Text(
+                '请选择 ${_currentWord!.word} 的正确中文释义',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Text('提示：优先复习错题，其次随机出题。',
-              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: AppUi.space16),
+          ..._options.map(
+            (option) => Padding(
+              padding: const EdgeInsets.only(bottom: AppUi.space12),
+              child: FilledButton.tonal(
+                onPressed: _answering ? null : () => _submitAnswer(option),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppUi.space16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppUi.radius12),
+                  ),
+                ),
+                child: Text(
+                  option,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppUi.space12),
+          Text(
+            '提示：优先复习错题，其次随机出题。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         ],
       ),
     );

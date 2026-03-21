@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../database/app_database.dart';
 import '../models/mistake_record.dart';
+import '../ui/app_theme.dart';
+import '../widgets/word_list_item.dart';
 
 class MistakesPage extends StatefulWidget {
   const MistakesPage({
@@ -124,17 +126,17 @@ class _MistakesPageState extends State<MistakesPage> {
     required int count,
   }) {
     final label = _typeLabel(type);
-    return Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 8,
-      runSpacing: 8,
+    return Row(
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.titleMedium,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
+        const SizedBox(width: AppUi.space8),
         Chip(label: Text('$count 条')),
+        const Spacer(),
         TextButton.icon(
           onPressed: () => _clearType(type, count),
           icon: const Icon(Icons.delete_sweep_outlined),
@@ -170,7 +172,7 @@ class _MistakesPageState extends State<MistakesPage> {
             .toList();
 
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppUi.space16),
           children: [
             for (final type in visibleTypes) ...[
               _buildSectionHeader(
@@ -178,40 +180,35 @@ class _MistakesPageState extends State<MistakesPage> {
                 type: type,
                 count: grouped[type]!.length,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppUi.space8),
               for (final item in grouped[type]!) ...[
-                Card(
-                  child: ListTile(
-                    title: Text(item.word ?? '未知单词'),
-                    subtitle: Text(
-                      '${item.meaning ?? ''}\n错误次数: ${item.count}',
-                    ),
-                    isThreeLine: true,
-                    trailing: Wrap(
-                      spacing: 8,
-                      children: [
-                        IconButton(
-                          tooltip: '选择题重练',
-                          onPressed: () => widget.onTrainChoice(item.wordId),
-                          icon: const Icon(Icons.quiz),
-                        ),
-                        IconButton(
-                          tooltip: '拼写重练',
-                          onPressed: () => widget.onTrainSpelling(item.wordId),
-                          icon: const Icon(Icons.spellcheck),
-                        ),
-                        IconButton(
-                          tooltip: '删除错题',
-                          onPressed: () => _deleteRecord(item),
-                          icon: const Icon(Icons.delete_outline),
-                        ),
-                      ],
-                    ),
+                WordListItem(
+                  title: item.word ?? '未知单词',
+                  subtitle: '${item.meaning ?? ''}\n错误次数: ${item.count}',
+                  trailing: Wrap(
+                    spacing: AppUi.space8,
+                    children: [
+                      IconButton(
+                        tooltip: '选择题重练',
+                        onPressed: () => widget.onTrainChoice(item.wordId),
+                        icon: const Icon(Icons.quiz),
+                      ),
+                      IconButton(
+                        tooltip: '拼写重练',
+                        onPressed: () => widget.onTrainSpelling(item.wordId),
+                        icon: const Icon(Icons.spellcheck),
+                      ),
+                      IconButton(
+                        tooltip: '删除错题',
+                        onPressed: () => _deleteRecord(item),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppUi.space8),
               ],
-              const SizedBox(height: 8),
+              const SizedBox(height: AppUi.space12),
             ],
           ],
         );

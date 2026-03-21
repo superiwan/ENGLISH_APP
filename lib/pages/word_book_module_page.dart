@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../database/app_database.dart';
 import '../models/word.dart';
+import '../widgets/word_list_item.dart';
 import 'word_detail_page.dart';
 
 enum WordBookModuleType {
@@ -301,11 +302,10 @@ class _GroupLineSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           for (final word in words)
-            ListTile(
+            WordListItem(
               dense: true,
-              contentPadding: EdgeInsets.zero,
-              title: Text(word.word),
-              subtitle: Text(_subtitle(word)),
+              title: word.word,
+              subtitle: _subtitle(word),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 final id = word.id;

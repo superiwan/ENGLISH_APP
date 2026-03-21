@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../database/app_database.dart';
 import '../models/word.dart';
+import '../ui/app_theme.dart';
 import '../utils/levenshtein.dart';
+import '../widgets/section_header.dart';
 
 class SpellingPage extends StatefulWidget {
   const SpellingPage({
@@ -101,8 +103,9 @@ class _SpellingPageState extends State<SpellingPage> {
     final expected = word.word.toLowerCase();
 
     if (input.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('请输入拼写后再提交。')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请输入拼写后再提交。')));
       return;
     }
 
@@ -121,16 +124,32 @@ class _SpellingPageState extends State<SpellingPage> {
     }
 
     if (isCorrect) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('拼写正确')));
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        SnackBar(
+          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          content: const Text('拼写正确'),
+        ),
+      );
     } else if (distance <= 2) {
       final hint = mismatchHint(expected, input);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('拼写接近正确。$hint 正确答案：$expected')),
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        SnackBar(
+          backgroundColor: Theme.of(context).colorScheme.errorContainer,
+          content: Text('拼写接近正确。$hint 正确答案：$expected'),
+        ),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('拼写错误。正确答案：$expected')),
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        SnackBar(
+          backgroundColor: Theme.of(context).colorScheme.errorContainer,
+          content: Text('拼写错误。正确答案：$expected'),
+        ),
       );
     }
 
@@ -149,25 +168,47 @@ class _SpellingPageState extends State<SpellingPage> {
     }
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppUi.space16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('请根据中文写出英文', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(_currentWord!.meaning,
-              style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 16),
+          SectionHeader(
+            title: '拼写训练',
+            subtitle: '本轮已掌握 ${_correctlyAnsweredWordIds.length} 个单词',
+          ),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppUi.space16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '请根据中文写出英文',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: AppUi.space8),
+                  Text(
+                    _currentWord!.meaning,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppUi.space16),
           TextField(
             controller: _controller,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              labelText: '输入英文单词',
-            ),
+            decoration: const InputDecoration(labelText: '输入英文单词'),
             onSubmitted: (_) => _checkSpelling(),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppUi.space12),
           FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppUi.radius12),
+              ),
+            ),
             onPressed: _checkSpelling,
             child: const Text('提交'),
           ),

@@ -9,6 +9,7 @@ import 'pages/multiple_choice_page.dart';
 import 'pages/progress_page.dart';
 import 'pages/spelling_page.dart';
 import 'pages/word_book_page.dart';
+import 'ui/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,10 +30,7 @@ class EnglishWordApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'English Word App',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.indigo,
-      ),
+      theme: buildAppTheme(),
       home: const HomeShell(),
       debugShowCheckedModeBanner: false,
     );
@@ -78,6 +76,18 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
+  void _openChoiceTab() {
+    setState(() {
+      _selectedIndex = 1;
+    });
+  }
+
+  void _openSpellingTab() {
+    setState(() {
+      _selectedIndex = 2;
+    });
+  }
+
   void _clearChoiceForcedWord() {
     if (!mounted) {
       return;
@@ -102,6 +112,8 @@ class _HomeShellState extends State<HomeShell> {
       WordBookPage(
         reloadTick: _reloadTick,
         onDataChanged: _refreshAll,
+        onOpenChoice: _openChoiceTab,
+        onOpenSpelling: _openSpellingTab,
       ),
       MultipleChoicePage(
         forcedWordId: _choiceForcedWordId,
@@ -136,10 +148,7 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: pages,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {

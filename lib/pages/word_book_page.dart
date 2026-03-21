@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../database/app_database.dart';
 import '../models/word.dart';
+import '../ui/app_theme.dart';
 import '../utils/pdf_importer.dart';
 import 'word_book_module_page.dart';
 
@@ -10,10 +11,14 @@ class WordBookPage extends StatefulWidget {
     super.key,
     required this.reloadTick,
     required this.onDataChanged,
+    required this.onOpenChoice,
+    required this.onOpenSpelling,
   });
 
   final int reloadTick;
   final VoidCallback onDataChanged;
+  final VoidCallback onOpenChoice;
+  final VoidCallback onOpenSpelling;
 
   @override
   State<WordBookPage> createState() => _WordBookPageState();
@@ -23,11 +28,13 @@ class _WordBookPageState extends State<WordBookPage> {
   final _db = AppDatabase.instance;
   final _importer = PdfImporter();
   late Future<List<Word>> _wordsFuture;
+  late Future<Map<String, num>> _statsFuture;
 
   @override
   void initState() {
     super.initState();
     _wordsFuture = _db.getAllWords();
+    _statsFuture = _db.getProgressStats();
   }
 
   @override
@@ -41,6 +48,7 @@ class _WordBookPageState extends State<WordBookPage> {
   void _reloadWords() {
     setState(() {
       _wordsFuture = _db.getAllWords();
+      _statsFuture = _db.getProgressStats();
     });
   }
 
@@ -98,9 +106,9 @@ class _WordBookPageState extends State<WordBookPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('PDF 导入失败：$e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('PDF 导入失败：$e')));
       return;
     } finally {
       if (mounted && Navigator.of(context).canPop()) {
@@ -139,63 +147,148 @@ class _WordBookPageState extends State<WordBookPage> {
   Widget build(BuildContext context) {
     return FutureBuilder<List<Word>>(
       future: _wordsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
+      builder: (context, wordsSnapshot) {
+        if (wordsSnapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final words = snapshot.data ?? [];
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                onPressed: _handleImport,
-                icon: const Icon(Icons.picture_as_pdf),
-                label: const Text('导入PDF'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '按模块浏览单词',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              words.isEmpty ? '先导入 PDF，再从模块进入单词列表。' : '从不同维度进入单词列表，再查看详情。',
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: _modules.map((module) {
-                final count = moduleWordCount(words, module);
-                return SizedBox(
-                  width: 260,
-                  child: _ModuleCard(
-                    title: module.title,
-                    description: module.description,
-                    count: count,
-                    icon: module.icon,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => WordBookModulePage(module: module),
-                        ),
-                      );
-                    },
+        final words = wordsSnapshot.data ?? [];
+        return FutureBuilder<Map<String, num>>(
+          future: _statsFuture,
+          builder: (context, statsSnapshot) {
+            final stats = statsSnapshot.data ??
+                {
+                  'total': words.length,
+                  'practiced': 0,
+                  'mastered': 0,
+                  'accuracy': 0.0,
+                };
+            final accuracy =
+                ((stats['accuracy'] ?? 0.0) * 100).toStringAsFixed(1);
+            return ListView(
+              padding: const EdgeInsets.all(AppUi.space16),
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    onPressed: _handleImport,
+                    icon: const Icon(Icons.picture_as_pdf),
+                    label: const Text('导入PDF'),
                   ),
-                );
-              }).toList(),
-            ),
-            if (words.isEmpty) ...[
-              const SizedBox(height: 24),
-              const Center(child: Text('当前还没有单词。导入后就可以按模块查看。')),
-            ],
-          ],
+                ),
+                const SizedBox(height: AppUi.space16),
+                _TodayEntryCard(
+                  total: '${stats['total']}',
+                  practiced: '${stats['practiced']}',
+                  accuracy: '$accuracy%',
+                  onOpenChoice: widget.onOpenChoice,
+                  onOpenSpelling: widget.onOpenSpelling,
+                ),
+                const SizedBox(height: AppUi.space16),
+                Text('按模块浏览单词', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: AppUi.space8),
+                Text(
+                  words.isEmpty ? '先导入 PDF，再从模块进入单词列表。' : '从不同维度进入单词列表，再查看详情。',
+                ),
+                const SizedBox(height: AppUi.space16),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final cardWidth = constraints.maxWidth < 560
+                        ? constraints.maxWidth
+                        : (constraints.maxWidth - AppUi.space12) / 2;
+                    return Wrap(
+                      spacing: AppUi.space12,
+                      runSpacing: AppUi.space12,
+                      children: _modules.map((module) {
+                        final count = moduleWordCount(words, module);
+                        return SizedBox(
+                          width: cardWidth,
+                          child: _ModuleCard(
+                            title: module.title,
+                            description: module.description,
+                            count: count,
+                            icon: module.icon,
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      WordBookModulePage(module: module),
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+                if (words.isEmpty) ...[
+                  const SizedBox(height: AppUi.space24),
+                  const Center(child: Text('当前还没有单词。导入后就可以按模块查看。')),
+                ],
+              ],
+            );
+          },
         );
       },
+    );
+  }
+}
+
+class _TodayEntryCard extends StatelessWidget {
+  const _TodayEntryCard({
+    required this.total,
+    required this.practiced,
+    required this.accuracy,
+    required this.onOpenChoice,
+    required this.onOpenSpelling,
+  });
+
+  final String total;
+  final String practiced;
+  final String accuracy;
+  final VoidCallback onOpenChoice;
+  final VoidCallback onOpenSpelling;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppUi.space16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '今日学习入口',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: AppUi.space8),
+            Text('总词数 $total · 已练习 $practiced · 正确率 $accuracy'),
+            const SizedBox(height: AppUi.space12),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onOpenChoice,
+                    icon: const Icon(Icons.quiz),
+                    label: const Text('开始选择题'),
+                  ),
+                ),
+                const SizedBox(width: AppUi.space8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: onOpenSpelling,
+                    icon: const Icon(Icons.spellcheck),
+                    label: const Text('开始拼写'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -223,7 +316,7 @@ class _ModuleCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppUi.space16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -232,11 +325,11 @@ class _ModuleCard extends StatelessWidget {
                 height: 44,
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppUi.radius12),
                 ),
                 child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppUi.space12),
               Text(title, style: theme.textTheme.titleMedium),
               const SizedBox(height: 6),
               Text(description, style: theme.textTheme.bodyMedium),
