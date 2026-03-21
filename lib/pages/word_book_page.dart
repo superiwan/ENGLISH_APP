@@ -4,6 +4,7 @@ import '../database/app_database.dart';
 import '../models/word.dart';
 import '../ui/app_theme.dart';
 import '../utils/pdf_importer.dart';
+import 'card_study_page.dart';
 import 'word_book_module_page.dart';
 
 class WordBookPage extends StatefulWidget {
@@ -181,6 +182,13 @@ class _WordBookPageState extends State<WordBookPage> {
                   total: '${stats['total']}',
                   practiced: '${stats['practiced']}',
                   accuracy: '$accuracy%',
+                  onOpenCardStudy: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => CardStudyPage(words: words),
+                      ),
+                    );
+                  },
                   onOpenChoice: widget.onOpenChoice,
                   onOpenSpelling: widget.onOpenSpelling,
                 ),
@@ -240,6 +248,7 @@ class _TodayEntryCard extends StatelessWidget {
     required this.total,
     required this.practiced,
     required this.accuracy,
+    required this.onOpenCardStudy,
     required this.onOpenChoice,
     required this.onOpenSpelling,
   });
@@ -247,6 +256,7 @@ class _TodayEntryCard extends StatelessWidget {
   final String total;
   final String practiced;
   final String accuracy;
+  final VoidCallback onOpenCardStudy;
   final VoidCallback onOpenChoice;
   final VoidCallback onOpenSpelling;
 
@@ -267,21 +277,32 @@ class _TodayEntryCard extends StatelessWidget {
             const SizedBox(height: AppUi.space8),
             Text('总词数 $total · 已练习 $practiced · 正确率 $accuracy'),
             const SizedBox(height: AppUi.space12),
-            Row(
+            Wrap(
+              spacing: AppUi.space8,
+              runSpacing: AppUi.space8,
               children: [
-                Expanded(
+                SizedBox(
+                  width: 152,
                   child: FilledButton.icon(
                     onPressed: onOpenChoice,
                     icon: const Icon(Icons.quiz),
-                    label: const Text('开始选择题'),
+                    label: const Text('选择题'),
                   ),
                 ),
-                const SizedBox(width: AppUi.space8),
-                Expanded(
+                SizedBox(
+                  width: 152,
                   child: FilledButton.tonalIcon(
                     onPressed: onOpenSpelling,
                     icon: const Icon(Icons.spellcheck),
-                    label: const Text('开始拼写'),
+                    label: const Text('拼写'),
+                  ),
+                ),
+                SizedBox(
+                  width: 152,
+                  child: FilledButton.tonalIcon(
+                    onPressed: onOpenCardStudy,
+                    icon: const Icon(Icons.view_carousel),
+                    label: const Text('卡片学习'),
                   ),
                 ),
               ],

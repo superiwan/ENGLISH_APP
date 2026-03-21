@@ -9,33 +9,41 @@ class AppUi {
   static const double radius16 = 16;
 }
 
-ThemeData buildAppTheme() {
+ThemeData buildAppTheme(Brightness brightness) {
   final scheme = ColorScheme.fromSeed(
     seedColor: const Color(0xFF3F51B5),
-    brightness: Brightness.light,
+    brightness: brightness,
   );
+  final isDark = brightness == Brightness.dark;
+  final scaffoldBackgroundColor =
+      isDark ? scheme.surface : const Color(0xFFF6F7FB);
+  final cardBackgroundColor =
+      isDark ? scheme.surfaceContainerHighest : Colors.white;
+  final inputFillColor = isDark ? scheme.surfaceContainerHigh : Colors.white;
+  final borderColor = isDark ? scheme.outlineVariant : const Color(0xFFD5DAE6);
 
   return ThemeData(
     useMaterial3: true,
+    brightness: brightness,
     colorScheme: scheme,
-    scaffoldBackgroundColor: const Color(0xFFF6F7FB),
+    scaffoldBackgroundColor: scaffoldBackgroundColor,
     appBarTheme: AppBarTheme(
       elevation: 0,
       centerTitle: false,
-      backgroundColor: const Color(0xFFF6F7FB),
+      backgroundColor: scaffoldBackgroundColor,
       foregroundColor: scheme.onSurface,
-      titleTextStyle: const TextStyle(
+      titleTextStyle: TextStyle(
         fontSize: 26,
         fontWeight: FontWeight.w700,
-        color: Color(0xFF1F2430),
+        color: scheme.onSurface,
       ),
     ),
     cardTheme: CardThemeData(
-      color: Colors.white,
+      color: cardBackgroundColor,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppUi.radius16),
-        side: const BorderSide(color: Color(0xFFE6E9F2)),
+        side: BorderSide(color: borderColor),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
@@ -46,14 +54,14 @@ ThemeData buildAppTheme() {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.white,
+      fillColor: inputFillColor,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppUi.radius12),
-        borderSide: const BorderSide(color: Color(0xFFD5DAE6)),
+        borderSide: BorderSide(color: borderColor),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppUi.radius12),
-        borderSide: const BorderSide(color: Color(0xFFD5DAE6)),
+        borderSide: BorderSide(color: borderColor),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppUi.radius12),
@@ -61,6 +69,7 @@ ThemeData buildAppTheme() {
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: scaffoldBackgroundColor,
       indicatorColor: scheme.primaryContainer,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);

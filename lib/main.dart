@@ -23,22 +23,48 @@ Future<void> main() async {
   runApp(const EnglishWordApp());
 }
 
-class EnglishWordApp extends StatelessWidget {
+class EnglishWordApp extends StatefulWidget {
   const EnglishWordApp({super.key});
+
+  @override
+  State<EnglishWordApp> createState() => _EnglishWordAppState();
+}
+
+class _EnglishWordAppState extends State<EnglishWordApp> {
+  ThemeMode _themeMode = ThemeMode.light;
+
+  void _toggleThemeMode() {
+    setState(() {
+      _themeMode =
+          _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'English Word App',
-      theme: buildAppTheme(),
-      home: const HomeShell(),
+      theme: buildAppTheme(Brightness.light),
+      darkTheme: buildAppTheme(Brightness.dark),
+      themeMode: _themeMode,
+      home: HomeShell(
+        themeMode: _themeMode,
+        onToggleThemeMode: _toggleThemeMode,
+      ),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+  const HomeShell({
+    super.key,
+    required this.themeMode,
+    required this.onToggleThemeMode,
+  });
+
+  final ThemeMode themeMode;
+  final VoidCallback onToggleThemeMode;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -136,11 +162,16 @@ class _HomeShellState extends State<HomeShell> {
       ),
       ProgressPage(reloadTick: _reloadTick),
     ];
-
+    final isDarkMode = widget.themeMode == ThemeMode.dark;
     return Scaffold(
       appBar: AppBar(
         title: const Text('英语单词学习'),
         actions: [
+          IconButton(
+            tooltip: isDarkMode ? '切换浅色模式' : '切换深色模式',
+            onPressed: widget.onToggleThemeMode,
+            icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
+          ),
           IconButton(
             tooltip: '刷新数据',
             onPressed: _refreshAll,

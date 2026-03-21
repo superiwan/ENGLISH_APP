@@ -30,3 +30,8 @@ All Pages -> AppTheme + Shared Widgets
 3. 改造单词本首页为“导入 + 学习入口 + 模块入口”。
 4. 改造单词详情页信息层级。
 5. 执行 `dart format` + `flutter analyze` + `flutter test`。
+
+## 第三阶段（已执行）
+1. 深色模式：主题支持 `light/dark`，并提供顶部切换按钮。
+2. 动画基线：页面切换淡入+轻位移，指标卡轻入场动画。
+3. 卡片分页学习页：新增 `CardStudyPage` 并接入单词本学习入口。
