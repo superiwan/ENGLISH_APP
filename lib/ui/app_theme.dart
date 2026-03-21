@@ -10,32 +10,93 @@ class AppUi {
 }
 
 ThemeData buildAppTheme(Brightness brightness) {
+  final baseTheme = ThemeData(brightness: brightness);
   final scheme = ColorScheme.fromSeed(
-    seedColor: const Color(0xFF3F51B5),
+    seedColor: const Color(0xFF5368E7),
     brightness: brightness,
   );
   final isDark = brightness == Brightness.dark;
   final scaffoldBackgroundColor =
-      isDark ? scheme.surface : const Color(0xFFF6F7FB);
+      isDark ? const Color(0xFF0E121A) : const Color(0xFFF4F6FA);
   final cardBackgroundColor =
-      isDark ? scheme.surfaceContainerHighest : Colors.white;
-  final inputFillColor = isDark ? scheme.surfaceContainerHigh : Colors.white;
-  final borderColor = isDark ? scheme.outlineVariant : const Color(0xFFD5DAE6);
+      isDark ? const Color(0xFF171D29) : const Color(0xFFFFFFFF);
+  final inputFillColor =
+      isDark ? const Color(0xFF1B2230) : const Color(0xFFF9FAFC);
+  final borderColor =
+      isDark ? const Color(0xFF2B3445) : const Color(0xFFDCE2EE);
+  final bodyColor = isDark ? const Color(0xFFF4F7FD) : const Color(0xFF182133);
+  final secondaryColor =
+      isDark ? const Color(0xFFB6C0D4) : const Color(0xFF667085);
+  final mutedColor = isDark ? const Color(0xFF8590A6) : const Color(0xFF8B95A7);
+  final navigationSurface =
+      isDark ? const Color(0xFF121826) : const Color(0xFFFFFFFF);
+  final navigationIndicator =
+      isDark ? scheme.primary.withValues(alpha: 0.22) : scheme.primaryContainer;
+  final navigationSelected =
+      isDark ? const Color(0xFFF4F7FD) : const Color(0xFF1B2A4A);
+  final navigationUnselected =
+      isDark ? const Color(0xFF8A94A8) : const Color(0xFF6E778C);
+  final textTheme = baseTheme.textTheme.copyWith(
+    displaySmall: baseTheme.textTheme.displaySmall?.copyWith(
+      color: bodyColor,
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.4,
+    ),
+    headlineMedium: baseTheme.textTheme.headlineMedium?.copyWith(
+      color: bodyColor,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.3,
+    ),
+    titleLarge: baseTheme.textTheme.titleLarge?.copyWith(
+      color: bodyColor,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.2,
+    ),
+    titleMedium: baseTheme.textTheme.titleMedium?.copyWith(
+      color: bodyColor,
+      fontWeight: FontWeight.w600,
+    ),
+    bodyLarge: baseTheme.textTheme.bodyLarge?.copyWith(
+      color: bodyColor,
+      height: 1.45,
+    ),
+    bodyMedium: baseTheme.textTheme.bodyMedium?.copyWith(
+      color: secondaryColor,
+      height: 1.45,
+    ),
+    bodySmall: baseTheme.textTheme.bodySmall?.copyWith(
+      color: mutedColor,
+      height: 1.35,
+    ),
+    labelLarge: baseTheme.textTheme.labelLarge?.copyWith(
+      color: secondaryColor,
+      fontWeight: FontWeight.w600,
+    ),
+  );
 
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
     colorScheme: scheme,
     scaffoldBackgroundColor: scaffoldBackgroundColor,
+    textTheme: textTheme,
     appBarTheme: AppBarTheme(
       elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      toolbarHeight: 72,
+      titleSpacing: 20,
       centerTitle: false,
       backgroundColor: scaffoldBackgroundColor,
-      foregroundColor: scheme.onSurface,
+      foregroundColor: bodyColor,
+      iconTheme: IconThemeData(color: bodyColor),
+      actionsIconTheme: IconThemeData(color: bodyColor),
       titleTextStyle: TextStyle(
-        fontSize: 26,
+        fontSize: 24,
         fontWeight: FontWeight.w700,
-        color: scheme.onSurface,
+        color: bodyColor,
+        letterSpacing: -0.2,
       ),
     ),
     cardTheme: CardThemeData(
@@ -56,26 +117,38 @@ ThemeData buildAppTheme(Brightness brightness) {
       filled: true,
       fillColor: inputFillColor,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppUi.radius12),
+        borderRadius: BorderRadius.circular(AppUi.radius16),
         borderSide: BorderSide(color: borderColor),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppUi.radius12),
+        borderRadius: BorderRadius.circular(AppUi.radius16),
         borderSide: BorderSide(color: borderColor),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppUi.radius12),
+        borderRadius: BorderRadius.circular(AppUi.radius16),
         borderSide: BorderSide(color: scheme.primary, width: 1.6),
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: scaffoldBackgroundColor,
-      indicatorColor: scheme.primaryContainer,
+      backgroundColor: navigationSurface,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      height: 74,
+      indicatorColor: navigationIndicator,
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return IconThemeData(
+          color: selected ? navigationSelected : navigationUnselected,
+          size: selected ? 25 : 24,
+        );
+      }),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return TextStyle(
           fontSize: 12,
           fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          color: selected ? navigationSelected : navigationUnselected,
         );
       }),
     ),

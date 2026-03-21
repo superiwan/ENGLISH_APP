@@ -132,6 +132,54 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
+  Widget _buildAppBarAction({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDarkMode
+        ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.56)
+        : const Color(0xFFF1F4FA);
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: backgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: Icon(icon),
+          style: IconButton.styleFrom(
+            foregroundColor: colorScheme.onSurfaceVariant,
+            minimumSize: const Size(44, 44),
+            padding: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  NavigationDestination _buildDestination({
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+  }) {
+    return NavigationDestination(
+      icon: Icon(icon),
+      selectedIcon: Icon(selectedIcon),
+      label: label,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
@@ -163,37 +211,91 @@ class _HomeShellState extends State<HomeShell> {
       ProgressPage(reloadTick: _reloadTick),
     ];
     final isDarkMode = widget.themeMode == ThemeMode.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    final navBorderColor = isDarkMode
+        ? colorScheme.outlineVariant.withValues(alpha: 0.42)
+        : const Color(0xFFE3E8F2);
+    final navShadowColor = isDarkMode
+        ? Colors.black.withValues(alpha: 0.36)
+        : const Color(0x1F0B1020);
     return Scaffold(
       appBar: AppBar(
         title: const Text('英语单词学习'),
         actions: [
-          IconButton(
+          _buildAppBarAction(
+            icon: isDarkMode ? Icons.light_mode : Icons.dark_mode,
             tooltip: isDarkMode ? '切换浅色模式' : '切换深色模式',
             onPressed: widget.onToggleThemeMode,
-            icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
           ),
-          IconButton(
+          _buildAppBarAction(
+            icon: Icons.refresh,
             tooltip: '刷新数据',
             onPressed: _refreshAll,
-            icon: const Icon(Icons.refresh),
           ),
         ],
       ),
       body: IndexedStack(index: _selectedIndex, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.menu_book), label: '单词本'),
-          NavigationDestination(icon: Icon(Icons.quiz), label: '选择题'),
-          NavigationDestination(icon: Icon(Icons.spellcheck), label: '拼写'),
-          NavigationDestination(icon: Icon(Icons.report_problem), label: '错题本'),
-          NavigationDestination(icon: Icon(Icons.insights), label: '统计'),
-        ],
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: navBorderColor),
+              boxShadow: [
+                BoxShadow(
+                  color: navShadowColor,
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: NavigationBar(
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: (index) {
+                  setState(() {
+                    _selectedIndex = index;
+                  });
+                },
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+                destinations: [
+                  _buildDestination(
+                    icon: Icons.menu_book_outlined,
+                    selectedIcon: Icons.menu_book,
+                    label: '单词本',
+                  ),
+                  _buildDestination(
+                    icon: Icons.quiz_outlined,
+                    selectedIcon: Icons.quiz,
+                    label: '选择题',
+                  ),
+                  _buildDestination(
+                    icon: Icons.spellcheck_outlined,
+                    selectedIcon: Icons.spellcheck,
+                    label: '拼写',
+                  ),
+                  _buildDestination(
+                    icon: Icons.report_problem_outlined,
+                    selectedIcon: Icons.report_problem,
+                    label: '错题本',
+                  ),
+                  _buildDestination(
+                    icon: Icons.insights_outlined,
+                    selectedIcon: Icons.insights,
+                    label: '统计',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
