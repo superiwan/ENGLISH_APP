@@ -11,6 +11,19 @@ class AppUi {
 
 ThemeData buildAppTheme(Brightness brightness) {
   final baseTheme = ThemeData(brightness: brightness);
+  const fontFamilyFallback = <String>[
+    'Segoe UI',
+    'SF Pro Text',
+    'PingFang SC',
+    'Microsoft YaHei',
+    'Noto Sans CJK SC',
+    'Noto Sans SC',
+    'Roboto',
+  ];
+  final shapedTextTheme = baseTheme.textTheme.apply(
+    fontFamily: 'Segoe UI',
+    fontFamilyFallback: fontFamilyFallback,
+  );
   final scheme = ColorScheme.fromSeed(
     seedColor: const Color(0xFF5368E7),
     brightness: brightness,
@@ -36,39 +49,39 @@ ThemeData buildAppTheme(Brightness brightness) {
       isDark ? const Color(0xFFF4F7FD) : const Color(0xFF1B2A4A);
   final navigationUnselected =
       isDark ? const Color(0xFF8A94A8) : const Color(0xFF6E778C);
-  final textTheme = baseTheme.textTheme.copyWith(
-    displaySmall: baseTheme.textTheme.displaySmall?.copyWith(
+  final textTheme = shapedTextTheme.copyWith(
+    displaySmall: shapedTextTheme.displaySmall?.copyWith(
       color: bodyColor,
       fontWeight: FontWeight.w800,
       letterSpacing: -0.4,
     ),
-    headlineMedium: baseTheme.textTheme.headlineMedium?.copyWith(
+    headlineMedium: shapedTextTheme.headlineMedium?.copyWith(
       color: bodyColor,
       fontWeight: FontWeight.w700,
       letterSpacing: -0.3,
     ),
-    titleLarge: baseTheme.textTheme.titleLarge?.copyWith(
+    titleLarge: shapedTextTheme.titleLarge?.copyWith(
       color: bodyColor,
       fontWeight: FontWeight.w700,
       letterSpacing: -0.2,
     ),
-    titleMedium: baseTheme.textTheme.titleMedium?.copyWith(
+    titleMedium: shapedTextTheme.titleMedium?.copyWith(
       color: bodyColor,
       fontWeight: FontWeight.w600,
     ),
-    bodyLarge: baseTheme.textTheme.bodyLarge?.copyWith(
+    bodyLarge: shapedTextTheme.bodyLarge?.copyWith(
       color: bodyColor,
       height: 1.45,
     ),
-    bodyMedium: baseTheme.textTheme.bodyMedium?.copyWith(
+    bodyMedium: shapedTextTheme.bodyMedium?.copyWith(
       color: secondaryColor,
       height: 1.45,
     ),
-    bodySmall: baseTheme.textTheme.bodySmall?.copyWith(
+    bodySmall: shapedTextTheme.bodySmall?.copyWith(
       color: mutedColor,
       height: 1.35,
     ),
-    labelLarge: baseTheme.textTheme.labelLarge?.copyWith(
+    labelLarge: shapedTextTheme.labelLarge?.copyWith(
       color: secondaryColor,
       fontWeight: FontWeight.w600,
     ),
@@ -97,6 +110,8 @@ ThemeData buildAppTheme(Brightness brightness) {
         fontWeight: FontWeight.w700,
         color: bodyColor,
         letterSpacing: -0.2,
+        fontFamily: 'Segoe UI',
+        fontFamilyFallback: fontFamilyFallback,
       ),
     ),
     cardTheme: CardThemeData(
