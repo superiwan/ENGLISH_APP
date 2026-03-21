@@ -4,7 +4,6 @@ import '../database/app_database.dart';
 import '../models/word.dart';
 import '../ui/app_theme.dart';
 import '../utils/levenshtein.dart';
-import '../widgets/section_header.dart';
 
 class SpellingPage extends StatefulWidget {
   const SpellingPage({
@@ -105,7 +104,7 @@ class _SpellingPageState extends State<SpellingPage> {
     if (input.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('请输入拼写后再提交。')));
+      ).showSnackBar(const SnackBar(content: Text('请输入答案后再提交。')));
       return;
     }
 
@@ -164,55 +163,281 @@ class _SpellingPageState extends State<SpellingPage> {
     }
 
     if (_currentWord == null) {
-      return const Center(child: Text('暂无题目，请先导入单词。'));
+      final theme = Theme.of(context);
+      final colorScheme = theme.colorScheme;
+      return SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(AppUi.space16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: _buildEmptyStateCard(
+                      context: context,
+                      icon: Icons.spellcheck_outlined,
+                      title: '暂无拼写题',
+                      description: '请先导入单词，再开始拼写训练。',
+                      color: colorScheme,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(AppUi.space16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SectionHeader(
-            title: '拼写训练',
-            subtitle: '本轮已掌握 ${_correctlyAnsweredWordIds.length} 个单词',
-          ),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppUi.space16),
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final masteredCount = _correctlyAnsweredWordIds.length;
+
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(AppUi.space16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    '请根据中文写出英文',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  _buildStatusCard(
+                    theme: theme,
+                    colorScheme: colorScheme,
+                    masteredCount: masteredCount,
                   ),
-                  const SizedBox(height: AppUi.space8),
+                  const SizedBox(height: AppUi.space16),
+                  _buildQuestionCard(theme: theme, colorScheme: colorScheme),
+                  const SizedBox(height: AppUi.space16),
+                  _buildInputCard(theme: theme, colorScheme: colorScheme),
+                  const SizedBox(height: AppUi.space12),
                   Text(
-                    _currentWord!.meaning,
-                    style: Theme.of(context).textTheme.headlineSmall,
+                    '学习提示：输入英文后点击提交，系统会自动判断并给出反馈。',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      height: 1.4,
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: AppUi.space16),
-          TextField(
-            controller: _controller,
-            decoration: const InputDecoration(labelText: '输入英文单词'),
-            onSubmitted: (_) => _checkSpelling(),
-          ),
-          const SizedBox(height: AppUi.space12),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
-              shape: RoundedRectangleBorder(
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyStateCard({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String description,
+    required ColorScheme color,
+  }) {
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 0,
+      color: color.surfaceContainerLow,
+      child: Padding(
+        padding: const EdgeInsets.all(AppUi.space16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: color.primaryContainer,
                 borderRadius: BorderRadius.circular(AppUi.radius12),
               ),
+              child: Icon(icon, color: color.onPrimaryContainer, size: 28),
             ),
-            onPressed: _checkSpelling,
-            child: const Text('提交'),
+            const SizedBox(height: AppUi.space16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: color.onSurface,
+              ),
+            ),
+            const SizedBox(height: AppUi.space8),
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: color.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusCard({
+    required ThemeData theme,
+    required ColorScheme colorScheme,
+    required int masteredCount,
+  }) {
+    return Card(
+      elevation: 0,
+      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
+      child: Padding(
+        padding: const EdgeInsets.all(AppUi.space16),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(AppUi.radius12),
+              ),
+              child: Icon(
+                Icons.spellcheck,
+                color: colorScheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(width: AppUi.space12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '拼写训练',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: AppUi.space8),
+                  Text(
+                    '本轮已掌握 $masteredCount 个单词',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuestionCard({
+    required ThemeData theme,
+    required ColorScheme colorScheme,
+  }) {
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              colorScheme.primaryContainer.withValues(alpha: 0.45),
+              colorScheme.surfaceContainerHighest,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppUi.space16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '请根据中文写出英文',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: AppUi.space12),
+              Text(
+                _currentWord!.meaning,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  height: 1.25,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputCard({
+    required ThemeData theme,
+    required ColorScheme colorScheme,
+  }) {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(AppUi.space16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '输入答案',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppUi.space12),
+            TextField(
+              controller: _controller,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                labelText: '输入英文单词',
+                hintText: '例如 apple',
+                filled: true,
+                fillColor:
+                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppUi.radius12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppUi.radius12),
+                  borderSide: BorderSide(
+                    color: colorScheme.outlineVariant,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppUi.radius12),
+                  borderSide: BorderSide(
+                    color: colorScheme.primary,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+              onSubmitted: (_) => _checkSpelling(),
+            ),
+            const SizedBox(height: AppUi.space12),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppUi.radius12),
+                ),
+              ),
+              onPressed: _checkSpelling,
+              child: const Text('提交答案'),
+            ),
+          ],
+        ),
       ),
     );
   }

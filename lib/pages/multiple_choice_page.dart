@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../database/app_database.dart';
 import '../models/word.dart';
 import '../ui/app_theme.dart';
-import '../widgets/section_header.dart';
 
 class MultipleChoicePage extends StatefulWidget {
   const MultipleChoicePage({
@@ -133,7 +132,7 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
             ? Theme.of(context).colorScheme.primaryContainer
             : Theme.of(context).colorScheme.errorContainer,
         content: Text(
-          isCorrect ? '回答正确' : '回答错误，正确答案：${_currentWord!.meaning}',
+          isCorrect ? '回答正确' : '回答错误，正确释义：${_currentWord!.meaning}',
         ),
         duration: const Duration(milliseconds: 800),
       ),
@@ -150,55 +149,279 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
     }
 
     if (_currentWord == null) {
-      return const Center(child: Text('暂无题目，请先导入单词。'));
+      final theme = Theme.of(context);
+      final colorScheme = theme.colorScheme;
+      return SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(AppUi.space16),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: _buildEmptyStateCard(
+                      context: context,
+                      icon: Icons.quiz_outlined,
+                      title: '暂无选择题',
+                      description: '请先导入单词，再开始选择题训练。',
+                      color: colorScheme,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
     }
 
-    return Padding(
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final masteredCount = _correctlyAnsweredWordIds.length;
+
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(AppUi.space16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildStatusBar(
+                      context: context,
+                      masteredCount: masteredCount,
+                    ),
+                    const SizedBox(height: AppUi.space16),
+                    Card(
+                      elevation: 0,
+                      color: colorScheme.surfaceContainerLow,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppUi.space16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '题干',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: AppUi.space12),
+                            Text(
+                              _currentWord!.word,
+                              style: theme.textTheme.displaySmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: colorScheme.onSurface,
+                                  ) ??
+                                  theme.textTheme.headlineMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: colorScheme.onSurface,
+                                  ),
+                            ),
+                            const SizedBox(height: AppUi.space8),
+                            Text(
+                              '请选择它的正确中文释义',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppUi.space16),
+                    Text(
+                      '选项',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: AppUi.space12),
+                    ..._options.asMap().entries.map(
+                          (entry) => Padding(
+                            padding: EdgeInsets.only(
+                                bottom: entry.key == _options.length - 1
+                                    ? 0
+                                    : AppUi.space12),
+                            child: SizedBox(
+                              height: 56,
+                              child: FilledButton.tonal(
+                                onPressed: _answering
+                                    ? null
+                                    : () => _submitAnswer(entry.value),
+                                style: FilledButton.styleFrom(
+                                  alignment: Alignment.centerLeft,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AppUi.space16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(AppUi.radius12),
+                                  ),
+                                  textStyle:
+                                      theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                child: Text(
+                                  entry.value,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    const SizedBox(height: AppUi.space16),
+                    Container(
+                      padding: const EdgeInsets.all(AppUi.space12),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(AppUi.radius12),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant,
+                        ),
+                      ),
+                      child: Text(
+                        '学习提示：优先复习错题，其次随机出题。',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyStateCard({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String description,
+    required ColorScheme color,
+  }) {
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 0,
+      color: color.surfaceContainerLow,
+      child: Padding(
+        padding: const EdgeInsets.all(AppUi.space16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: color.primaryContainer,
+                borderRadius: BorderRadius.circular(AppUi.radius12),
+              ),
+              child: Icon(icon, color: color.onPrimaryContainer, size: 28),
+            ),
+            const SizedBox(height: AppUi.space16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: color.onSurface,
+              ),
+            ),
+            const SizedBox(height: AppUi.space8),
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: color.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBar({
+    required BuildContext context,
+    required int masteredCount,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
       padding: const EdgeInsets.all(AppUi.space16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppUi.radius16),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Row(
         children: [
-          SectionHeader(
-            title: '选择题训练',
-            subtitle: '本轮已掌握 ${_correctlyAnsweredWordIds.length} 个单词',
-          ),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppUi.space16),
-              child: Text(
-                '请选择 ${_currentWord!.word} 的正确中文释义',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-          ),
-          const SizedBox(height: AppUi.space16),
-          ..._options.map(
-            (option) => Padding(
-              padding: const EdgeInsets.only(bottom: AppUi.space12),
-              child: FilledButton.tonal(
-                onPressed: _answering ? null : () => _submitAnswer(option),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppUi.space16,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppUi.radius12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '选择题训练',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onSurface,
                   ),
                 ),
-                child: Text(
-                  option,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 4),
+                Text(
+                  '本轮优先巩固已经答对的单词',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
-          const SizedBox(height: AppUi.space12),
-          Text(
-            '提示：优先复习错题，其次随机出题。',
-            style: Theme.of(context).textTheme.bodySmall,
+          const SizedBox(width: AppUi.space12),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppUi.space12,
+              vertical: AppUi.space8,
+            ),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(AppUi.radius12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '本轮掌握数',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$masteredCount',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
