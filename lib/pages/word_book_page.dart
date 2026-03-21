@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../database/app_database.dart';
+import '../models/learning_session.dart';
 import '../models/word.dart';
 import '../ui/app_theme.dart';
 import '../utils/pdf_importer.dart';
@@ -14,12 +15,18 @@ class WordBookPage extends StatefulWidget {
     required this.onDataChanged,
     required this.onOpenChoice,
     required this.onOpenSpelling,
+    required this.onContinueChoice,
+    required this.onContinueSpelling,
   });
 
   final int reloadTick;
   final VoidCallback onDataChanged;
   final VoidCallback onOpenChoice;
   final VoidCallback onOpenSpelling;
+  final void Function(int? wordId, String module, String subgroup)
+      onContinueChoice;
+  final void Function(int? wordId, String module, String subgroup)
+      onContinueSpelling;
 
   @override
   State<WordBookPage> createState() => _WordBookPageState();
@@ -30,12 +37,14 @@ class _WordBookPageState extends State<WordBookPage> {
   final _importer = PdfImporter();
   late Future<List<Word>> _wordsFuture;
   late Future<Map<String, num>> _statsFuture;
+  Future<LearningSession?>? _latestSessionFuture;
 
   @override
   void initState() {
     super.initState();
     _wordsFuture = _db.getAllWords();
     _statsFuture = _db.getProgressStats();
+    _latestSessionFuture = _db.getLatestLearningSession();
   }
 
   @override
@@ -50,7 +59,115 @@ class _WordBookPageState extends State<WordBookPage> {
     setState(() {
       _wordsFuture = _db.getAllWords();
       _statsFuture = _db.getProgressStats();
+      _latestSessionFuture = _db.getLatestLearningSession();
     });
+  }
+
+  String _modeLabel(String mode) {
+    switch (mode.trim().toLowerCase()) {
+      case 'choice':
+      case 'multiple_choice':
+      case 'multiplechoice':
+      case 'quiz':
+      case 'multiple-choice':
+        return '选择题';
+      case 'spelling':
+      case 'spell':
+      case 'dictation':
+      case 'spelling_test':
+      case 'spelling-test':
+        return '拼写';
+      case 'card':
+      case 'cards':
+      case 'flashcard':
+        return '卡片学习';
+      default:
+        return mode.trim().isEmpty ? '未知模式' : mode.trim();
+    }
+  }
+
+  String _moduleLabel(String module) {
+    switch (module.trim()) {
+      case 'similarWords':
+      case 'similar_words':
+      case 'similar-words':
+        return '形近词';
+      case 'synonyms':
+      case 'synonym':
+        return '同义词';
+      case 'prefix':
+        return '前缀相同';
+      case 'suffix':
+        return '后缀相同';
+      case 'allWords':
+      case 'all_words':
+      case 'all-words':
+        return '全部单词';
+      default:
+        return module.trim().isEmpty ? '未命名模块' : module.trim();
+    }
+  }
+
+  String _subgroupLabel(String subgroup) {
+    final trimmed = subgroup.trim();
+    if (trimmed.isEmpty || trimmed == 'default') {
+      return '全部';
+    }
+    if (trimmed == 'daily') {
+      return '今日训练';
+    }
+    return trimmed;
+  }
+
+  String _progressLabel(LearningSession session) {
+    final total = session.totalCount;
+    final current = session.currentIndex.clamp(0, total).toInt();
+    return '$current/$total';
+  }
+
+  bool _isChoiceMode(String mode) {
+    final normalized = mode.trim().toLowerCase();
+    return const {
+      'choice',
+      'multiple_choice',
+      'multiplechoice',
+      'quiz',
+      'multiple-choice',
+    }.contains(normalized);
+  }
+
+  bool _isSpellingMode(String mode) {
+    final normalized = mode.trim().toLowerCase();
+    return const {
+      'spelling',
+      'spell',
+      'dictation',
+      'spelling_test',
+      'spelling-test',
+    }.contains(normalized);
+  }
+
+  void _continueLearning(LearningSession session) {
+    if (_isChoiceMode(session.mode)) {
+      widget.onContinueChoice(
+        session.currentWordId,
+        session.module,
+        session.subgroup,
+      );
+      return;
+    }
+    if (_isSpellingMode(session.mode)) {
+      widget.onContinueSpelling(
+        session.currentWordId,
+        session.module,
+        session.subgroup,
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('当前最新学习记录暂不支持恢复。')),
+    );
   }
 
   Future<void> _handleImport() async {
@@ -234,6 +351,8 @@ class _WordBookPageState extends State<WordBookPage> {
         return FutureBuilder<Map<String, num>>(
           future: _statsFuture,
           builder: (context, statsSnapshot) {
+            final sessionFuture =
+                _latestSessionFuture ??= _db.getLatestLearningSession();
             final stats = statsSnapshot.data ??
                 {
                   'total': words.length,
@@ -243,61 +362,89 @@ class _WordBookPageState extends State<WordBookPage> {
                 };
             final accuracy =
                 ((stats['accuracy'] ?? 0.0) * 100).toStringAsFixed(1);
-            return ListView(
-              padding: const EdgeInsets.all(AppUi.space16),
-              children: [
-                _OverviewCard(
-                  total: '${stats['total']}',
-                  practiced: '${stats['practiced']}',
-                  mastered: '${stats['mastered']}',
-                  accuracy: '$accuracy%',
-                  hasWords: words.isNotEmpty,
-                  onImport: _handleImport,
-                ),
-                const SizedBox(height: AppUi.space16),
-                _TodayEntryCard(
-                  total: '${stats['total']}',
-                  practiced: '${stats['practiced']}',
-                  accuracy: '$accuracy%',
-                  onOpenCardStudy: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => CardStudyPage(words: words),
-                      ),
-                    );
-                  },
-                  onOpenChoice: widget.onOpenChoice,
-                  onOpenSpelling: widget.onOpenSpelling,
-                ),
-                const SizedBox(height: AppUi.space16),
-                _SectionHeader(
-                  title: '按模块浏览单词',
-                  subtitle: words.isEmpty
-                      ? '先导入 PDF，再从模块进入单词列表。'
-                      : '从不同维度进入单词列表，再查看详情。',
-                ),
-                const SizedBox(height: AppUi.space8),
-                _ModuleBrowserGrid(
-                  words: words,
-                  modules: _modules,
-                  onOpenModule: (module) {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => WordBookModulePage(module: module),
-                      ),
-                    );
-                  },
-                ),
-                if (words.isEmpty) ...[
-                  const SizedBox(height: AppUi.space24),
-                  Center(
-                    child: Text(
-                      '当前还没有单词。导入后就可以按模块查看。',
-                      style: theme.textTheme.bodyMedium,
+            return FutureBuilder<LearningSession?>(
+              future: sessionFuture,
+              builder: (context, sessionSnapshot) {
+                final latestSession = sessionSnapshot.data;
+                final canContinue = latestSession != null &&
+                    (_isChoiceMode(latestSession.mode) ||
+                        _isSpellingMode(latestSession.mode));
+                return ListView(
+                  padding: const EdgeInsets.all(AppUi.space16),
+                  children: [
+                    _OverviewCard(
+                      total: '${stats['total']}',
+                      practiced: '${stats['practiced']}',
+                      mastered: '${stats['mastered']}',
+                      accuracy: '$accuracy%',
+                      hasWords: words.isNotEmpty,
+                      onImport: _handleImport,
                     ),
-                  ),
-                ],
-              ],
+                    const SizedBox(height: AppUi.space16),
+                    _ContinueLearningCard(
+                      session: latestSession,
+                      modeLabel: latestSession == null
+                          ? '暂无最近记录'
+                          : _modeLabel(latestSession.mode),
+                      moduleLabel: latestSession == null
+                          ? '先完成一次训练'
+                          : _moduleLabel(latestSession.module),
+                      subgroupLabel: latestSession == null
+                          ? '未开始'
+                          : _subgroupLabel(latestSession.subgroup),
+                      progressLabel: latestSession == null
+                          ? '0/0'
+                          : _progressLabel(latestSession),
+                      onPressed: canContinue
+                          ? () => _continueLearning(latestSession)
+                          : null,
+                    ),
+                    const SizedBox(height: AppUi.space16),
+                    _TodayEntryCard(
+                      total: '${stats['total']}',
+                      practiced: '${stats['practiced']}',
+                      accuracy: '$accuracy%',
+                      onOpenCardStudy: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => CardStudyPage(words: words),
+                          ),
+                        );
+                      },
+                      onOpenChoice: widget.onOpenChoice,
+                      onOpenSpelling: widget.onOpenSpelling,
+                    ),
+                    const SizedBox(height: AppUi.space16),
+                    _SectionHeader(
+                      title: '按模块浏览单词',
+                      subtitle: words.isEmpty
+                          ? '先导入 PDF，再从模块进入单词列表。'
+                          : '从不同维度进入单词列表，再查看详情。',
+                    ),
+                    const SizedBox(height: AppUi.space8),
+                    _ModuleBrowserGrid(
+                      words: words,
+                      modules: _modules,
+                      onOpenModule: (module) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => WordBookModulePage(module: module),
+                          ),
+                        );
+                      },
+                    ),
+                    if (words.isEmpty) ...[
+                      const SizedBox(height: AppUi.space24),
+                      Center(
+                        child: Text(
+                          '当前还没有单词。导入后就可以按模块查看。',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             );
           },
         );
@@ -519,6 +666,191 @@ class _TodayEntryCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ContinueLearningCard extends StatelessWidget {
+  const _ContinueLearningCard({
+    required this.session,
+    required this.modeLabel,
+    required this.moduleLabel,
+    required this.subgroupLabel,
+    required this.progressLabel,
+    required this.onPressed,
+  });
+
+  final LearningSession? session;
+  final String modeLabel;
+  final String moduleLabel;
+  final String subgroupLabel;
+  final String progressLabel;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final hasSession = session != null;
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppUi.radius12 * 2),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              colorScheme.secondaryContainer.withValues(alpha: 0.88),
+              colorScheme.surfaceContainerHighest,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: const EdgeInsets.all(AppUi.space16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(AppUi.radius12),
+                  ),
+                  child: Icon(
+                    Icons.play_circle_outline,
+                    color: colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: AppUi.space12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '继续学习',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        hasSession
+                            ? '从最近一次断点直接回到对应训练。'
+                            : '还没有可恢复的学习记录，先开始一轮训练。',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppUi.space16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 520;
+                final sessionInfo = <Widget>[
+                  _SessionInfoChip(label: '模式', value: modeLabel),
+                  _SessionInfoChip(label: '模块', value: moduleLabel),
+                  _SessionInfoChip(label: '子模块', value: subgroupLabel),
+                  _SessionInfoChip(label: '进度', value: progressLabel),
+                ];
+
+                final button = FilledButton.icon(
+                  onPressed: onPressed,
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('继续学习'),
+                );
+
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ...sessionInfo
+                          .expand(
+                            (chip) => [
+                              chip,
+                              const SizedBox(height: AppUi.space8),
+                            ],
+                          )
+                          .toList()
+                        ..removeLast(),
+                      const SizedBox(height: AppUi.space16),
+                      SizedBox(height: 48, child: button),
+                    ],
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: AppUi.space8,
+                      runSpacing: AppUi.space8,
+                      children: sessionInfo,
+                    ),
+                    const SizedBox(height: AppUi.space16),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: button,
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionInfoChip extends StatelessWidget {
+  const _SessionInfoChip({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppUi.space12,
+        vertical: AppUi.space8,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(AppUi.radius12),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: theme.textTheme.labelMedium),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

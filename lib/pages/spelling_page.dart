@@ -10,6 +10,8 @@ class SpellingPage extends StatefulWidget {
     super.key,
     required this.reloadTick,
     required this.forcedRequestId,
+    required this.sessionModule,
+    required this.sessionSubgroup,
     required this.onForcedWordConsumed,
     required this.onResultSaved,
     this.forcedWordId,
@@ -17,6 +19,8 @@ class SpellingPage extends StatefulWidget {
 
   final int reloadTick;
   final int forcedRequestId;
+  final String sessionModule;
+  final String sessionSubgroup;
   final int? forcedWordId;
   final VoidCallback onForcedWordConsumed;
   final VoidCallback onResultSaved;
@@ -28,10 +32,12 @@ class SpellingPage extends StatefulWidget {
 class _SpellingPageState extends State<SpellingPage> {
   final _db = AppDatabase.instance;
   final _controller = TextEditingController();
+  static const String _sessionMode = 'spelling';
 
   Word? _currentWord;
   final Set<int> _correctlyAnsweredWordIds = <int>{};
   bool _loading = true;
+  int _totalCount = 0;
   int _lastReloadTick = -1;
   String? _lastConsumedForcedRequestKey;
 
@@ -76,6 +82,8 @@ class _SpellingPageState extends State<SpellingPage> {
     word ??= await _db.pickPriorityWord(
       excludedWordIds: _correctlyAnsweredWordIds.toList(),
     );
+    final stats = await _db.getProgressStats();
+    _totalCount = (stats['total'] ?? 0).round();
 
     if (!mounted) {
       return;
@@ -90,6 +98,34 @@ class _SpellingPageState extends State<SpellingPage> {
     if (consumedForcedWord && mounted) {
       widget.onForcedWordConsumed();
     }
+
+    if (word != null) {
+      await _saveCheckpoint(word);
+    }
+  }
+
+  Future<void> _saveCheckpoint(Word word) async {
+    final wordId = word.id;
+    if (wordId == null) {
+      return;
+    }
+    final currentIndex = _correctlyAnsweredWordIds.length + 1;
+    final module = widget.sessionModule.trim().isEmpty
+        ? 'allWords'
+        : widget.sessionModule.trim();
+    final subgroup = widget.sessionSubgroup.trim().isEmpty
+        ? 'daily'
+        : widget.sessionSubgroup.trim();
+    final sessionKey = '$_sessionMode|$module|$subgroup';
+    await _db.upsertLearningSession(
+      sessionKey: sessionKey,
+      mode: _sessionMode,
+      module: module,
+      subgroup: subgroup,
+      currentWordId: wordId,
+      currentIndex: currentIndex,
+      totalCount: _totalCount,
+    );
   }
 
   Future<void> _checkSpelling() async {

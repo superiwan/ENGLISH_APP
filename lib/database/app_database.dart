@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../models/learning_session.dart';
 import '../models/mistake_record.dart';
 import '../models/word.dart';
 import '../utils/pdf_importer.dart';
@@ -29,38 +30,68 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE words (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            word TEXT UNIQUE,
-            phonetic TEXT,
-            meaning TEXT,
-            phrase TEXT,
-            prefix TEXT,
-            suffix TEXT,
-            similar_words TEXT,
-            synonyms TEXT,
-            familiarity INTEGER DEFAULT 0,
-            wrong_count INTEGER DEFAULT 0,
-            right_count INTEGER DEFAULT 0
-          )
-        ''');
-
-        await db.execute('''
-          CREATE TABLE mistakes (
-            word_id INTEGER,
-            type TEXT,
-            count INTEGER DEFAULT 1,
-            PRIMARY KEY (word_id, type),
-            FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
-          )
-        ''');
-
+        await _createBaseTables(db);
         await _insertSeedData(db);
       },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await _createLearningSessionTable(db);
+        }
+      },
     );
+  }
+
+  Future<void> _createBaseTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE words (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT UNIQUE,
+        phonetic TEXT,
+        meaning TEXT,
+        phrase TEXT,
+        prefix TEXT,
+        suffix TEXT,
+        similar_words TEXT,
+        synonyms TEXT,
+        familiarity INTEGER DEFAULT 0,
+        wrong_count INTEGER DEFAULT 0,
+        right_count INTEGER DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE mistakes (
+        word_id INTEGER,
+        type TEXT,
+        count INTEGER DEFAULT 1,
+        PRIMARY KEY (word_id, type),
+        FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await _createLearningSessionTable(db);
+  }
+
+  Future<void> _createLearningSessionTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS learning_sessions (
+        session_key TEXT PRIMARY KEY,
+        mode TEXT NOT NULL,
+        module TEXT NOT NULL,
+        subgroup TEXT NOT NULL,
+        current_word_id INTEGER,
+        current_index INTEGER NOT NULL DEFAULT 0,
+        total_count INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_learning_sessions_updated_at
+      ON learning_sessions(updated_at DESC)
+    ''');
   }
 
   Future<void> _insertSeedData(Database db) async {
@@ -140,6 +171,83 @@ class AppDatabase {
     final db = await database;
     final rows = await db.query('words', orderBy: 'word COLLATE NOCASE ASC');
     return rows.map(Word.fromMap).toList();
+  }
+
+  Future<void> upsertLearningSession({
+    required String sessionKey,
+    required String mode,
+    required String module,
+    required String subgroup,
+    int? currentWordId,
+    required int currentIndex,
+    required int totalCount,
+    DateTime? updatedAt,
+  }) async {
+    final db = await database;
+    final now = updatedAt ?? DateTime.now();
+    await db.rawInsert(
+      '''
+      INSERT INTO learning_sessions (
+        session_key, mode, module, subgroup, current_word_id,
+        current_index, total_count, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_key) DO UPDATE SET
+        mode = excluded.mode,
+        module = excluded.module,
+        subgroup = excluded.subgroup,
+        current_word_id = excluded.current_word_id,
+        current_index = excluded.current_index,
+        total_count = excluded.total_count,
+        updated_at = excluded.updated_at
+      ''',
+      [
+        sessionKey,
+        mode,
+        module,
+        subgroup,
+        currentWordId,
+        currentIndex,
+        totalCount,
+        now.millisecondsSinceEpoch,
+      ],
+    );
+  }
+
+  Future<LearningSession?> getLatestLearningSession() async {
+    final db = await database;
+    final rows = await db.query(
+      'learning_sessions',
+      orderBy: 'updated_at DESC, session_key DESC',
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return LearningSession.fromMap(rows.first);
+  }
+
+  Future<LearningSession?> getLearningSessionByKey(String sessionKey) async {
+    final db = await database;
+    final rows = await db.query(
+      'learning_sessions',
+      where: 'session_key = ?',
+      whereArgs: [sessionKey],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return LearningSession.fromMap(rows.first);
+  }
+
+  Future<int> clearLearningSession(String sessionKey) async {
+    final db = await database;
+    return db.delete(
+      'learning_sessions',
+      where: 'session_key = ?',
+      whereArgs: [sessionKey],
+    );
   }
 
   Future<Word?> getWordById(int id) async {

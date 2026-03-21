@@ -9,6 +9,8 @@ class MultipleChoicePage extends StatefulWidget {
     super.key,
     required this.reloadTick,
     required this.forcedRequestId,
+    required this.sessionModule,
+    required this.sessionSubgroup,
     required this.onForcedWordConsumed,
     required this.onResultSaved,
     this.forcedWordId,
@@ -16,6 +18,8 @@ class MultipleChoicePage extends StatefulWidget {
 
   final int reloadTick;
   final int forcedRequestId;
+  final String sessionModule;
+  final String sessionSubgroup;
   final int? forcedWordId;
   final VoidCallback onForcedWordConsumed;
   final VoidCallback onResultSaved;
@@ -26,12 +30,14 @@ class MultipleChoicePage extends StatefulWidget {
 
 class _MultipleChoicePageState extends State<MultipleChoicePage> {
   final _db = AppDatabase.instance;
+  static const String _sessionMode = 'choice';
 
   Word? _currentWord;
   final Set<int> _correctlyAnsweredWordIds = <int>{};
   List<String> _options = [];
   bool _loading = true;
   bool _answering = false;
+  int _totalCount = 0;
   int _lastReloadTick = -1;
   String? _lastConsumedForcedRequestKey;
 
@@ -84,6 +90,8 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
     }
 
     final options = await _db.buildOptionsForWord(word);
+    final stats = await _db.getProgressStats();
+    _totalCount = (stats['total'] ?? 0).round();
 
     if (!mounted) {
       return;
@@ -98,6 +106,32 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
     if (consumedForcedWord && mounted) {
       widget.onForcedWordConsumed();
     }
+
+    await _saveCheckpoint(word);
+  }
+
+  Future<void> _saveCheckpoint(Word word) async {
+    final wordId = word.id;
+    if (wordId == null) {
+      return;
+    }
+    final currentIndex = _correctlyAnsweredWordIds.length + 1;
+    final module = widget.sessionModule.trim().isEmpty
+        ? 'allWords'
+        : widget.sessionModule.trim();
+    final subgroup = widget.sessionSubgroup.trim().isEmpty
+        ? 'daily'
+        : widget.sessionSubgroup.trim();
+    final sessionKey = '$_sessionMode|$module|$subgroup';
+    await _db.upsertLearningSession(
+      sessionKey: sessionKey,
+      mode: _sessionMode,
+      module: module,
+      subgroup: subgroup,
+      currentWordId: wordId,
+      currentIndex: currentIndex,
+      totalCount: _totalCount,
+    );
   }
 
   Future<void> _submitAnswer(String selectedMeaning) async {

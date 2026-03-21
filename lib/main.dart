@@ -75,8 +75,12 @@ class _HomeShellState extends State<HomeShell> {
   int _reloadTick = 0;
   int? _choiceForcedWordId;
   int _choiceForcedRequestId = 0;
+  String _choiceSessionModule = 'allWords';
+  String _choiceSessionSubgroup = 'daily';
   int? _spellingForcedWordId;
   int _spellingForcedRequestId = 0;
+  String _spellingSessionModule = 'allWords';
+  String _spellingSessionSubgroup = 'daily';
 
   void _refreshAll() {
     setState(() {
@@ -84,22 +88,58 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  void _openChoiceRetrain(int wordId) {
+  void _openChoiceTraining({
+    int? wordId,
+    String module = 'allWords',
+    String subgroup = 'daily',
+  }) {
     setState(() {
       _choiceForcedWordId = wordId;
-      _choiceForcedRequestId++;
+      if (wordId != null) {
+        _choiceForcedRequestId++;
+      }
+      _choiceSessionModule = module;
+      _choiceSessionSubgroup = subgroup;
       _selectedIndex = 1;
       _reloadTick++;
     });
   }
 
-  void _openSpellingRetrain(int wordId) {
+  void _openSpellingTraining({
+    int? wordId,
+    String module = 'allWords',
+    String subgroup = 'daily',
+  }) {
     setState(() {
       _spellingForcedWordId = wordId;
-      _spellingForcedRequestId++;
+      if (wordId != null) {
+        _spellingForcedRequestId++;
+      }
+      _spellingSessionModule = module;
+      _spellingSessionSubgroup = subgroup;
       _selectedIndex = 2;
       _reloadTick++;
     });
+  }
+
+  void _openChoiceSession(int? wordId, String module, String subgroup) {
+    _openChoiceTraining(wordId: wordId, module: module, subgroup: subgroup);
+  }
+
+  void _openSpellingSession(int? wordId, String module, String subgroup) {
+    _openSpellingTraining(wordId: wordId, module: module, subgroup: subgroup);
+  }
+
+  void _openChoiceRetrain(int wordId) {
+    _openChoiceTraining(wordId: wordId, module: 'mistakes', subgroup: 'choice');
+  }
+
+  void _openSpellingRetrain(int wordId) {
+    _openSpellingTraining(
+      wordId: wordId,
+      module: 'mistakes',
+      subgroup: 'spelling',
+    );
   }
 
   void _openChoiceTab() {
@@ -188,10 +228,14 @@ class _HomeShellState extends State<HomeShell> {
         onDataChanged: _refreshAll,
         onOpenChoice: _openChoiceTab,
         onOpenSpelling: _openSpellingTab,
+        onContinueChoice: _openChoiceSession,
+        onContinueSpelling: _openSpellingSession,
       ),
       MultipleChoicePage(
         forcedWordId: _choiceForcedWordId,
         forcedRequestId: _choiceForcedRequestId,
+        sessionModule: _choiceSessionModule,
+        sessionSubgroup: _choiceSessionSubgroup,
         reloadTick: _reloadTick,
         onForcedWordConsumed: _clearChoiceForcedWord,
         onResultSaved: _refreshAll,
@@ -199,6 +243,8 @@ class _HomeShellState extends State<HomeShell> {
       SpellingPage(
         forcedWordId: _spellingForcedWordId,
         forcedRequestId: _spellingForcedRequestId,
+        sessionModule: _spellingSessionModule,
+        sessionSubgroup: _spellingSessionSubgroup,
         reloadTick: _reloadTick,
         onForcedWordConsumed: _clearSpellingForcedWord,
         onResultSaved: _refreshAll,
