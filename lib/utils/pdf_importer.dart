@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -36,11 +36,31 @@ class PdfImporter {
     r"([A-Za-z][A-Za-z'-]*)\s*\[([^\]]{1,80})\]\s*(.+?)(?=(?:\s+[A-Za-z][A-Za-z'-]*\s*(?:/[^/]{1,80}/|\[[^\]]{1,80}\]))|$)",
     dotAll: true,
   );
-  static final RegExp _posPrefixRegExp =
-      RegExp(r'^(n\.|v\.|vt\.|vi\.|adj\.|adv\.|prep\.|conj\.|pron\.)\s*', caseSensitive: false);
-  static final RegExp _leadingPhoneticRegExp =
-      RegExp(r"^(?:\[?[^\u4e00-\u9fff]{1,40}\]?)\s*");
+  static final RegExp _zeroWidthRegExp = RegExp(r'[\u200B-\u200D\uFEFF]');
+  static final RegExp _noiseChunkRegExp = RegExp(
+    r'(/\s*[^/\n]{1,60}\s*/|\[\s*[^\]\n]{1,60}\s*\]|\(\s*[^\)\n]{1,60}\s*\)|（\s*[^）\n]{1,60}\s*）|【\s*[^】\n]{1,60}\s*】|［\s*[^］\n]{1,60}\s*］)',
+  );
+  static final RegExp _posPrefixRegExp = RegExp(
+      r'^(n\.|v\.|vt\.|vi\.|adj\.|adv\.|prep\.|conj\.|pron\.)\s*',
+      caseSensitive: false);
   static final RegExp _chineseRegExp = RegExp(r'[\u4e00-\u9fff]');
+  static final RegExp _phoneticCleanupRegExp = RegExp(
+      r'[^\u00C0-\u024F\u0250-\u02AF\u02B0-\u02FF\u0300-\u036FA-Za-z0-9.\-:ˈˌːˑʰʲʷʱʔʕɫɚɝɾɹɐɜɞɒɔɛəɪʊθðʃʒŋç]');
+  static final RegExp _meaningCleanupRegExp = RegExp(
+    r'[^\u4e00-\u9fff，。；：、！？（）()【】《》〈〉「」『』·…—\-~]',
+  );
+  static final RegExp _meaningTrimRegExp =
+      RegExp(r'^[，。；：、！？·…—\-（）()【】《》〈〉]+|[，。；：、！？·…—\-（）()【】《》〈〉]+$');
+  static final RegExp _standalonePosRegExp = RegExp(
+    r'(^|[，,；;、:：\s])(?:n|v|vt|vi|adj|adv|prep|conj|pron|art|num|int|pl|sb|sth|abbr|aux|modal|imp)\.?(?=[，,；;、:：\s]|$)',
+    caseSensitive: false,
+  );
+  static final RegExp _standaloneNumberRegExp = RegExp(
+    r'(^|[，,；;、:：\s])(?:\(?\s*(?:\d+|[①-⑳])\s*[\).、．:]?\s*)(?=[，,；;、:：\s]|$)',
+  );
+  static final RegExp _danglingNumberRegExp =
+      RegExp(r'(?:\s*(?:\d+|[①-⑳])\s*[)）．.、:]?)+$');
+  static final RegExp _allNumberRegExp = RegExp(r'[0-9０-９①-⑳]');
 
   Future<String?> pickPdfPath() async {
     final result = await FilePicker.platform.pickFiles(
@@ -80,24 +100,30 @@ class PdfImporter {
       final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
 
       for (final match in _fullTextSlashRegExp.allMatches(normalized)) {
-        final word = (match.group(1) ?? '').trim().toLowerCase();
-        final phonetic = (match.group(2) ?? '').trim();
-        final meaning = _normalizeMeaning((match.group(3) ?? '').trim());
-        if (!_isValidWordEntry(word, meaning) || !seenWords.add(word)) {
+        final parsed = _buildWord(
+          match.group(1) ?? '',
+          match.group(2) ?? '',
+          match.group(3) ?? '',
+        );
+        if (!_isValidWordEntry(parsed.word, parsed.meaning) ||
+            !seenWords.add(parsed.word)) {
           continue;
         }
-        words.add(Word(word: word, phonetic: phonetic, meaning: meaning));
+        words.add(parsed);
       }
 
       if (words.isEmpty) {
         for (final match in _fullTextBracketRegExp.allMatches(normalized)) {
-          final word = (match.group(1) ?? '').trim().toLowerCase();
-          final phonetic = (match.group(2) ?? '').trim();
-          final meaning = _normalizeMeaning((match.group(3) ?? '').trim());
-          if (!_isValidWordEntry(word, meaning) || !seenWords.add(word)) {
+          final parsed = _buildWord(
+            match.group(1) ?? '',
+            match.group(2) ?? '',
+            match.group(3) ?? '',
+          );
+          if (!_isValidWordEntry(parsed.word, parsed.meaning) ||
+              !seenWords.add(parsed.word)) {
             continue;
           }
-          words.add(Word(word: word, phonetic: phonetic, meaning: meaning));
+          words.add(parsed);
         }
       }
     }
@@ -112,48 +138,118 @@ class PdfImporter {
     );
   }
 
+  static Word normalizeImportedWord(Word word) {
+    return Word(
+      word: word.word.trim().toLowerCase(),
+      phonetic: _normalizePhonetic(word.phonetic),
+      meaning: _normalizeMeaning(word.meaning),
+      phrase: word.phrase,
+      prefix: word.prefix,
+      suffix: word.suffix,
+      similarWords: word.similarWords,
+      synonyms: word.synonyms,
+      familiarity: word.familiarity,
+      wrongCount: word.wrongCount,
+      rightCount: word.rightCount,
+    );
+  }
+
   Word? _tryParseLine(String line) {
     final slashMatch = _lineSlashRegExp.firstMatch(line);
     if (slashMatch != null) {
-      final word = (slashMatch.group(1) ?? '').trim().toLowerCase();
-      final phonetic = (slashMatch.group(2) ?? '').trim();
-      final meaning = _normalizeMeaning((slashMatch.group(3) ?? '').trim());
-      if (_isValidWordEntry(word, meaning)) {
-        return Word(word: word, phonetic: phonetic, meaning: meaning);
+      final parsed = _buildWord(
+        slashMatch.group(1) ?? '',
+        slashMatch.group(2) ?? '',
+        slashMatch.group(3) ?? '',
+      );
+      if (_isValidWordEntry(parsed.word, parsed.meaning)) {
+        return parsed;
       }
     }
 
     final bracketMatch = _lineBracketRegExp.firstMatch(line);
     if (bracketMatch != null) {
-      final word = (bracketMatch.group(1) ?? '').trim().toLowerCase();
-      final phonetic = (bracketMatch.group(2) ?? '').trim();
-      final meaning = _normalizeMeaning((bracketMatch.group(3) ?? '').trim());
-      if (_isValidWordEntry(word, meaning)) {
-        return Word(word: word, phonetic: phonetic, meaning: meaning);
+      final parsed = _buildWord(
+        bracketMatch.group(1) ?? '',
+        bracketMatch.group(2) ?? '',
+        bracketMatch.group(3) ?? '',
+      );
+      if (_isValidWordEntry(parsed.word, parsed.meaning)) {
+        return parsed;
       }
     }
 
     final noPhoneticMatch = _lineNoPhoneticRegExp.firstMatch(line);
     if (noPhoneticMatch != null) {
-      final word = (noPhoneticMatch.group(1) ?? '').trim().toLowerCase();
-      final meaning = _normalizeMeaning((noPhoneticMatch.group(2) ?? '').trim());
-      if (_isValidWordEntry(word, meaning)) {
-        return Word(word: word, phonetic: '', meaning: meaning);
+      final parsed = _buildWord(
+        noPhoneticMatch.group(1) ?? '',
+        '',
+        noPhoneticMatch.group(2) ?? '',
+      );
+      if (_isValidWordEntry(parsed.word, parsed.meaning)) {
+        return parsed;
       }
     }
 
     return null;
   }
 
-  String _normalizeMeaning(String value) {
-    var meaning = value.replaceAll(RegExp(r'\s+'), ' ').trim();
-    meaning = meaning.replaceFirst(_leadingPhoneticRegExp, '').trim();
+  static Word _buildWord(String word, String phonetic, String meaning) {
+    return Word(
+      word: word.trim().toLowerCase(),
+      phonetic: _normalizePhonetic(phonetic),
+      meaning: _normalizeMeaning(meaning.trim()),
+    );
+  }
+
+  static String _normalizeMeaning(String value) {
+    var meaning = value.replaceAll(_zeroWidthRegExp, '');
+    meaning = meaning.replaceAll(RegExp(r'\s+'), ' ').trim();
+    meaning = _removeNoiseChunks(meaning);
     meaning = meaning.replaceFirst(_posPrefixRegExp, '').trim();
+    meaning = meaning.replaceFirst(
+        RegExp(r'^(?:\(?\s*(?:\d+|[①-⑳])\s*[\).、．:]?\s*)+'), '');
+    meaning = _removeNoiseChunks(meaning);
+    meaning = meaning.replaceAll(_standalonePosRegExp, r'$1');
+    meaning = meaning.replaceAll(_standaloneNumberRegExp, r'$1');
     final firstChinese = meaning.indexOf(RegExp(r'[\u4e00-\u9fff]'));
     if (firstChinese >= 0) {
       meaning = meaning.substring(firstChinese).trim();
     }
-    return meaning;
+    meaning = meaning.replaceAll(_meaningCleanupRegExp, '');
+    meaning = meaning.replaceAll(_danglingNumberRegExp, '');
+    meaning = meaning.replaceAll(_allNumberRegExp, '');
+    meaning = meaning.replaceAll(RegExp(r'\s+'), '');
+    meaning = meaning.replaceAll(_meaningTrimRegExp, '');
+    return meaning.trim();
+  }
+
+  static String _removeNoiseChunks(String value) {
+    return value.replaceAllMapped(_noiseChunkRegExp, (match) {
+      final chunk = match.group(0) ?? '';
+      return _chineseRegExp.hasMatch(chunk) ? chunk : ' ';
+    });
+  }
+
+  static String _normalizePhonetic(String value) {
+    var phonetic = value.replaceAll(_zeroWidthRegExp, '').trim();
+    if (phonetic.isEmpty) {
+      return '';
+    }
+
+    phonetic = phonetic.replaceAll(RegExp(r'\s+'), '');
+    phonetic = phonetic.replaceAll(RegExp(r'^[\[/【［\(\{（｛]+'), '');
+    phonetic = phonetic.replaceAll(RegExp(r'[\]/】］\)\}）｝]+$'), '');
+    phonetic = phonetic.replaceAll(RegExp(r'[【】［］（）(){}<>《》、,，。；;|·•…]'), '');
+    phonetic = phonetic.replaceAll(RegExp(r"[“”‘’']"), '');
+    phonetic = phonetic.replaceAll(_phoneticCleanupRegExp, '');
+    phonetic = phonetic.replaceAll(RegExp(r'/+'), '');
+    phonetic = phonetic.trim();
+    if (phonetic.isEmpty) {
+      return '';
+    }
+
+    return '/$phonetic/';
   }
 
   bool _isValidWordEntry(String word, String meaning) {

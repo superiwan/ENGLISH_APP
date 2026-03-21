@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../database/app_database.dart';
 import '../models/word.dart';
@@ -7,12 +7,16 @@ class MultipleChoicePage extends StatefulWidget {
   const MultipleChoicePage({
     super.key,
     required this.reloadTick,
+    required this.forcedRequestId,
+    required this.onForcedWordConsumed,
     required this.onResultSaved,
     this.forcedWordId,
   });
 
   final int reloadTick;
+  final int forcedRequestId;
   final int? forcedWordId;
+  final VoidCallback onForcedWordConsumed;
   final VoidCallback onResultSaved;
 
   @override
@@ -23,6 +27,7 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
   final _db = AppDatabase.instance;
 
   Word? _currentWord;
+  final Set<int> _correctlyAnsweredWordIds = <int>{};
   List<String> _options = [];
   bool _loading = true;
   bool _answering = false;
@@ -39,7 +44,8 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
   @override
   void didUpdateWidget(covariant MultipleChoicePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.reloadTick != _lastReloadTick || oldWidget.forcedWordId != widget.forcedWordId) {
+    if (widget.reloadTick != _lastReloadTick ||
+        oldWidget.forcedRequestId != widget.forcedRequestId) {
       _lastReloadTick = widget.reloadTick;
       _loadQuestion();
     }
@@ -53,12 +59,17 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
 
     Word? word;
     final forcedId = widget.forcedWordId;
-    final forcedRequestKey = forcedId == null ? null : '$forcedId:${widget.reloadTick}';
+    final forcedRequestKey =
+        forcedId == null ? null : '$forcedId:${widget.forcedRequestId}';
+    var consumedForcedWord = false;
     if (forcedId != null && _lastConsumedForcedRequestKey != forcedRequestKey) {
       word = await _db.getWordById(forcedId);
       _lastConsumedForcedRequestKey = forcedRequestKey;
+      consumedForcedWord = true;
     }
-    word ??= await _db.pickPriorityWord();
+    word ??= await _db.pickPriorityWord(
+      excludedWordIds: _correctlyAnsweredWordIds.toList(),
+    );
 
     if (word == null) {
       if (mounted) {
@@ -82,6 +93,10 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
       _options = options;
       _loading = false;
     });
+
+    if (consumedForcedWord && mounted) {
+      widget.onForcedWordConsumed();
+    }
   }
 
   Future<void> _submitAnswer(String selectedMeaning) async {
@@ -94,8 +109,13 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
     });
 
     final isCorrect = selectedMeaning == _currentWord!.meaning;
-    await _db.recordChoiceResult(wordId: _currentWord!.id!, isCorrect: isCorrect);
-    widget.onResultSaved();
+    await _db.recordChoiceResult(
+        wordId: _currentWord!.id!, isCorrect: isCorrect);
+    if (isCorrect) {
+      _correctlyAnsweredWordIds.add(_currentWord!.id!);
+    } else {
+      _correctlyAnsweredWordIds.remove(_currentWord!.id!);
+    }
 
     if (!mounted) {
       return;
@@ -111,7 +131,7 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
     );
 
     await Future<void>.delayed(const Duration(milliseconds: 450));
-    await _loadQuestion();
+    widget.onResultSaved();
   }
 
   @override
@@ -129,7 +149,8 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('请选择 ${_currentWord!.word} 的正确中文释义', style: Theme.of(context).textTheme.titleLarge),
+          Text('请选择 ${_currentWord!.word} 的正确中文释义',
+              style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
           ..._options.map(
             (option) => Padding(
@@ -141,7 +162,8 @@ class _MultipleChoicePageState extends State<MultipleChoicePage> {
             ),
           ),
           const SizedBox(height: 12),
-          Text('提示：优先复习错题，其次随机出题。', style: Theme.of(context).textTheme.bodySmall),
+          Text('提示：优先复习错题，其次随机出题。',
+              style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );

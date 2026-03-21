@@ -1,8 +1,9 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'database/app_database.dart';
 import 'pages/mistakes_page.dart';
 import 'pages/multiple_choice_page.dart';
 import 'pages/progress_page.dart';
@@ -16,6 +17,7 @@ Future<void> main() async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
+  await AppDatabase.instance.normalizeExistingWords();
 
   runApp(const EnglishWordApp());
 }
@@ -48,7 +50,9 @@ class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
   int _reloadTick = 0;
   int? _choiceForcedWordId;
+  int _choiceForcedRequestId = 0;
   int? _spellingForcedWordId;
+  int _spellingForcedRequestId = 0;
 
   void _refreshAll() {
     setState(() {
@@ -59,6 +63,7 @@ class _HomeShellState extends State<HomeShell> {
   void _openChoiceRetrain(int wordId) {
     setState(() {
       _choiceForcedWordId = wordId;
+      _choiceForcedRequestId++;
       _selectedIndex = 1;
       _reloadTick++;
     });
@@ -67,8 +72,27 @@ class _HomeShellState extends State<HomeShell> {
   void _openSpellingRetrain(int wordId) {
     setState(() {
       _spellingForcedWordId = wordId;
+      _spellingForcedRequestId++;
       _selectedIndex = 2;
       _reloadTick++;
+    });
+  }
+
+  void _clearChoiceForcedWord() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _choiceForcedWordId = null;
+    });
+  }
+
+  void _clearSpellingForcedWord() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _spellingForcedWordId = null;
     });
   }
 
@@ -81,12 +105,16 @@ class _HomeShellState extends State<HomeShell> {
       ),
       MultipleChoicePage(
         forcedWordId: _choiceForcedWordId,
+        forcedRequestId: _choiceForcedRequestId,
         reloadTick: _reloadTick,
+        onForcedWordConsumed: _clearChoiceForcedWord,
         onResultSaved: _refreshAll,
       ),
       SpellingPage(
         forcedWordId: _spellingForcedWordId,
+        forcedRequestId: _spellingForcedRequestId,
         reloadTick: _reloadTick,
+        onForcedWordConsumed: _clearSpellingForcedWord,
         onResultSaved: _refreshAll,
       ),
       MistakesPage(
@@ -108,7 +136,10 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ],
       ),
-      body: pages[_selectedIndex],
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: pages,
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
@@ -127,4 +158,3 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 }
-

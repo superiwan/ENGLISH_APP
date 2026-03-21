@@ -1,10 +1,11 @@
-﻿import 'dart:math';
+import 'dart:math';
 
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/mistake_record.dart';
 import '../models/word.dart';
+import '../utils/pdf_importer.dart';
 
 class AppDatabase {
   AppDatabase._();
@@ -127,9 +128,10 @@ class AppDatabase {
 
   Future<int> insertWord(Word word) async {
     final db = await database;
+    final cleaned = PdfImporter.normalizeImportedWord(word);
     return db.insert(
       'words',
-      word.toMap(),
+      cleaned.toMap(),
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
   }
@@ -142,18 +144,28 @@ class AppDatabase {
 
   Future<Word?> getWordById(int id) async {
     final db = await database;
-    final rows = await db.query('words', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows =
+        await db.query('words', where: 'id = ?', whereArgs: [id], limit: 1);
     if (rows.isEmpty) {
       return null;
     }
     return Word.fromMap(rows.first);
   }
 
-  Future<Word?> pickPriorityWord() async {
+  Future<Word?> pickPriorityWord({List<int> excludedWordIds = const []}) async {
     final db = await database;
+    final uniqueExcluded = excludedWordIds.toSet().toList();
+    final hasExcluded = uniqueExcluded.isNotEmpty;
+    final placeholders =
+        hasExcluded ? List.filled(uniqueExcluded.length, '?').join(',') : '';
+    final where = hasExcluded
+        ? 'wrong_count > 0 AND id NOT IN ($placeholders)'
+        : 'wrong_count > 0';
+    final whereArgs = hasExcluded ? List<Object?>.from(uniqueExcluded) : null;
     final candidates = await db.query(
       'words',
-      where: 'wrong_count > 0',
+      where: where,
+      whereArgs: whereArgs,
       orderBy: 'wrong_count DESC, RANDOM()',
       limit: 50,
     );
@@ -166,12 +178,20 @@ class AppDatabase {
       return validCandidates.first;
     }
 
-    final randomWords = await db.rawQuery('SELECT * FROM words ORDER BY RANDOM() LIMIT 200');
+    final randomWords = !hasExcluded
+        ? await db.rawQuery('SELECT * FROM words ORDER BY RANDOM() LIMIT 200')
+        : await db.rawQuery(
+            'SELECT * FROM words WHERE id NOT IN ($placeholders) ORDER BY RANDOM() LIMIT 200',
+            uniqueExcluded,
+          );
     for (final row in randomWords) {
       final word = Word.fromMap(row);
       if (_isValidMeaning(word.meaning)) {
         return word;
       }
+    }
+    if (hasExcluded) {
+      return pickPriorityWord();
     }
     return null;
   }
@@ -185,7 +205,8 @@ class AppDatabase {
     return rows.map(Word.fromMap).toList();
   }
 
-  Future<void> recordChoiceResult({required int wordId, required bool isCorrect}) async {
+  Future<void> recordChoiceResult(
+      {required int wordId, required bool isCorrect}) async {
     if (isCorrect) {
       await _updateWordStats(wordId, familiarityDelta: 10, rightDelta: 1);
     } else {
@@ -194,7 +215,8 @@ class AppDatabase {
     }
   }
 
-  Future<void> recordSpellingResult({required int wordId, required bool isCorrect}) async {
+  Future<void> recordSpellingResult(
+      {required int wordId, required bool isCorrect}) async {
     if (isCorrect) {
       await _updateWordStats(wordId, familiarityDelta: 10, rightDelta: 1);
     } else {
@@ -223,7 +245,8 @@ class AppDatabase {
     );
   }
 
-  Future<void> _upsertMistake({required int wordId, required String type}) async {
+  Future<void> _upsertMistake(
+      {required int wordId, required String type}) async {
     final db = await database;
     await db.rawInsert(
       '''
@@ -245,6 +268,72 @@ class AppDatabase {
       ORDER BY m.count DESC, w.word COLLATE NOCASE ASC
     ''');
     return rows.map(MistakeRecord.fromMap).toList();
+  }
+
+  Future<int> deleteMistakeRecord({
+    required int wordId,
+    required String type,
+  }) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      final rows = await txn.rawQuery(
+        'SELECT count FROM mistakes WHERE word_id = ? AND type = ? LIMIT 1',
+        [wordId, type],
+      );
+      if (rows.isEmpty) {
+        return 0;
+      }
+
+      final count = (rows.first['count'] as int?) ?? 0;
+      await txn.delete(
+        'mistakes',
+        where: 'word_id = ? AND type = ?',
+        whereArgs: [wordId, type],
+      );
+      await txn.rawUpdate(
+        '''
+        UPDATE words
+        SET wrong_count = MAX(0, wrong_count - ?)
+        WHERE id = ?
+        ''',
+        [count, wordId],
+      );
+      return count;
+    });
+  }
+
+  Future<int> clearMistakesByType(String type) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      final rows = await txn.rawQuery(
+        'SELECT word_id, count FROM mistakes WHERE type = ?',
+        [type],
+      );
+      if (rows.isEmpty) {
+        return 0;
+      }
+
+      var removedCount = 0;
+      for (final row in rows) {
+        final wordId = row['word_id'] as int;
+        final count = (row['count'] as int?) ?? 0;
+        await txn.delete(
+          'mistakes',
+          where: 'word_id = ? AND type = ?',
+          whereArgs: [wordId, type],
+        );
+        await txn.rawUpdate(
+          '''
+          UPDATE words
+          SET wrong_count = MAX(0, wrong_count - ?)
+          WHERE id = ?
+          ''',
+          [count, wordId],
+        );
+        removedCount += count;
+      }
+      return removedCount;
+    });
   }
 
   Future<Map<String, num>> getProgressStats() async {
@@ -277,13 +366,14 @@ class AppDatabase {
     };
   }
 
-  Future<int> importWords(List<Word> words, {void Function(int, int)? onProgress}) async {
+  Future<int> importWords(List<Word> words,
+      {void Function(int, int)? onProgress}) async {
     final db = await database;
     var success = 0;
 
     await db.transaction((txn) async {
       for (var i = 0; i < words.length; i++) {
-        final current = words[i];
+        final current = PdfImporter.normalizeImportedWord(words[i]);
         if (!_isValidMeaning(current.meaning)) {
           onProgress?.call(i + 1, words.length);
           continue;
@@ -323,6 +413,33 @@ class AppDatabase {
     });
 
     return success;
+  }
+
+  Future<int> normalizeExistingWords() async {
+    final db = await database;
+    final rows = await db.query('words');
+    var updated = 0;
+    await db.transaction((txn) async {
+      for (final row in rows) {
+        final original = Word.fromMap(row);
+        final cleaned = PdfImporter.normalizeImportedWord(original);
+        if (cleaned.phonetic == original.phonetic &&
+            cleaned.meaning == original.meaning) {
+          continue;
+        }
+        await txn.update(
+          'words',
+          {
+            'phonetic': cleaned.phonetic,
+            'meaning': cleaned.meaning,
+          },
+          where: 'id = ?',
+          whereArgs: [original.id],
+        );
+        updated++;
+      }
+    });
+    return updated;
   }
 
   Future<List<String>> buildOptionsForWord(Word answerWord) async {
