@@ -59,6 +59,27 @@ flutter build apk --release
 
 说明：如果提示未找到 Android SDK，请先安装 Android Studio 并配置 `ANDROID_HOME / ANDROID_SDK_ROOT`。
 
+## 发布到 GitHub Release
+
+先确保已安装并登录 GitHub CLI：
+
+```bash
+gh auth login
+```
+
+然后在项目根目录执行（示例版本号 `v1.0.1`）：
+
+```bash
+cd D:/English_app
+git add .
+git commit -m "chore: android release build fixes"
+git tag v1.0.1
+git push origin DEV --tags
+gh release create v1.0.1 build/app/outputs/flutter-apk/app-release.apk --title "v1.0.1" --notes "Android release APK"
+```
+
+发布后可在仓库 Release 页面直接下载 `app-release.apk`。
+
 ## 版本记录（最近）
 
 - UI 现代化改版：卡片化布局、圆角导航、统一主题。

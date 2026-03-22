@@ -1,8 +1,6 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
-import 'package:pdf_text/pdf_text.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import '../models/word.dart';
@@ -267,11 +265,6 @@ class PdfImporter {
   }
 
   Future<String> _extractPdfText(String path) async {
-    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-      final document = await PDFDoc.fromPath(path);
-      return document.text;
-    }
-
     return _extractPdfTextWithSyncfusion(path);
   }
 
